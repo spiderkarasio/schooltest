@@ -2,72 +2,101 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Cloudflare Proxy</title>
+    <title>Gemini Vision Proxy</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 40px auto; background-color: #f4f4f9; padding: 20px; }
-        h3 { color: #333; text-align: center; }
-        #chat { height: 400px; border: 1px solid #ddd; overflow-y: auto; padding: 15px; margin-bottom: 15px; border-radius: 12px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .msg { margin-bottom: 12px; line-height: 1.4; }
-        .user-msg { color: #2c3e50; }
-        .bot-msg { color: #27ae60; background: #f0fff4; padding: 8px; border-radius: 8px; }
-        .controls { display: flex; gap: 10px; }
-        input { flex-grow: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; outline: none; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #0056b3; }
+        body { font-family: sans-serif; max-width: 500px; margin: 20px auto; background: #eee; padding: 10px; }
+        #chat { height: 350px; border: 1px solid #ccc; overflow-y: auto; padding: 10px; background: white; border-radius: 8px; margin-bottom: 10px; }
+        .msg { margin-bottom: 10px; padding: 8px; border-radius: 5px; background: #f9f9f9; }
+        .controls { display: flex; flex-direction: column; gap: 10px; }
+        input[type="text"] { padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .btn-group { display: flex; gap: 5px; }
+        button { flex: 1; padding: 10px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
         button:disabled { background: #ccc; }
+        #preview { max-width: 100%; max-height: 100px; display: none; margin-top: 5px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <h3>Gemini через Cloudflare Worker</h3>
-    <div id="chat"></div>
+    <div id="chat"><h3>Чат с Gemini (Текст + Фото)</h3></div>
+    
     <div class="controls">
-        <input type="text" id="userInput" placeholder="Введите ваш вопрос..." onkeypress="if(event.key==='Enter') send()">
-        <button id="sendBtn" onclick="send()">Отправить</button>
+        <input type="file" id="fileInput" accept="image/*" onchange="previewImage()">
+        <img id="preview">
+        <input type="text" id="userInput" placeholder="Введите вопрос...">
+        <div class="btn-group">
+            <button id="sendBtn" onclick="send()">Отправить</button>
+            <button onclick="clearChat()" style="background:#6c757d">Очистить</button>
+        </div>
     </div>
 
     <script>
-        // --- ЗАМЕНИ НА СВОЙ АДРЕС ИЗ CLOUDFLARE ---
-        const WORKER_URL = 'https://proud-cloud-cb1b.spiderkaras.workers.dev
-';
+        const WORKER_URL = 'https://workers.dev'; // ПРОВЕРЬ URL!
+
+        let selectedImageBase64 = null;
+        let selectedImageType = null;
+
+        function previewImage() {
+            const file = document.getElementById('fileInput').files[0];
+            const preview = document.getElementById('preview');
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    // Убираем префикс "data:image/jpeg;base64," для API
+                    selectedImageBase64 = e.target.result.split(',')[1];
+                    selectedImageType = file.type;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
 
         async function send() {
             const input = document.getElementById('userInput');
             const chat = document.getElementById('chat');
             const btn = document.getElementById('sendBtn');
-            const message = input.value.trim();
+            const text = input.value.trim();
+
+            if (!text && !selectedImageBase64) return;
+
+            // Визуально добавляем сообщение
+            chat.innerHTML += `<div class="msg"><b>Вы:</b> ${text} ${selectedImageBase64 ? '(с картинкой)' : ''}</div>`;
             
-            if (!message) return;
-
-            // Блокируем интерфейс
+            // Сброс полей
+            const currentMsg = text;
+            const currentImg = selectedImageBase64;
+            const currentImgType = selectedImageType;
+            
             input.value = '';
-            input.disabled = true;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('preview').style.display = 'none';
+            selectedImageBase64 = null;
+            
             btn.disabled = true;
-
-            chat.innerHTML += `<div class="msg user-msg"><b>Вы:</b> ${message}</div>`;
             chat.scrollTop = chat.scrollHeight;
 
             try {
                 const response = await fetch(WORKER_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ 
+                        message: currentMsg, 
+                        imageBase64: currentImg,
+                        imageType: currentImgType
+                    })
                 });
                 
                 const data = await response.json();
-                const reply = data.reply || "Ошибка сервера";
-                
-                chat.innerHTML += `<div class="msg bot-msg"><b>Gemini:</b> ${reply}</div>`;
+                chat.innerHTML += `<div class="msg" style="background:#e3f2fd"><b>Бот:</b> ${data.reply}</div>`;
             } catch (err) {
-                chat.innerHTML += `<div style="color:red" class="msg">Ошибка: Не удалось связаться с воркером. Проверьте CORS или URL.</div>`;
+                chat.innerHTML += `<div class="msg" style="color:red">Ошибка соединения</div>`;
             } finally {
-                input.disabled = false;
                 btn.disabled = false;
-                input.focus();
                 chat.scrollTop = chat.scrollHeight;
             }
         }
+
+        function clearChat() { document.getElementById('chat').innerHTML = ''; }
     </script>
 </body>
 </html>

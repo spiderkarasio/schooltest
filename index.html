@@ -1,118 +1,518 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Proxy Chat</title>
-    <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; background: #f0f2f5; padding: 15px; }
-        #chat { height: 400px; border: 1px solid #ccc; overflow-y: auto; padding: 15px; background: white; border-radius: 10px; margin-bottom: 15px; }
-        .msg { margin-bottom: 12px; padding: 10px; border-radius: 8px; }
-        .user-msg { background: #e3f2fd; }
-        .bot-msg { background: #f1f8e9; }
-        .controls { display: flex; flex-direction: column; gap: 10px; background: white; padding: 15px; border-radius: 10px; border: 1px solid #ddd; }
-        input[type="text"] { padding: 12px; border: 1px solid #ddd; border-radius: 6px; }
-        .btn-group { display: flex; gap: 10px; }
-        button { flex: 1; padding: 12px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 6px; font-weight: bold; }
-        button:disabled { background: #ccc; }
-        #preview { max-width: 100%; max-height: 150px; display: none; margin: 10px 0; border-radius: 6px; border: 1px dashed #ccc; }
-        .hint { font-size: 12px; color: #666; margin-top: -5px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --md-primary: #6750A4;
+      --md-on-primary: #ffffff;
+      --md-primary-container: #EADDFF;
+      --md-on-primary-container: #21005D;
+      --md-secondary: #625B71;
+      --md-surface: #FFFBFE;
+      --md-surface-variant: #E7E0EC;
+      --md-on-surface: #1C1B1F;
+      --md-on-surface-variant: #49454F;
+      --md-outline: #79747E;
+      --md-outline-variant: #CAC4D0;
+      --md-shadow: rgba(0,0,0,0.15);
+      --md-user-bubble: #6750A4;
+      --md-user-text: #ffffff;
+      --md-bot-bubble: #E7E0EC;
+      --md-bot-text: #1C1B1F;
+      --md-input-bg: #FFFBFE;
+      --md-topbar: #6750A4;
+      --md-topbar-text: #ffffff;
+      --md-ripple: rgba(103,80,164,0.12);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 12px;
+      --elevation-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+      --elevation-2: 0 2px 6px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.08);
+      --elevation-3: 0 4px 12px rgba(0,0,0,.14);
+      transition: background .3s, color .3s;
+    }
+    [data-theme="dark"] {
+      --md-primary: #D0BCFF;
+      --md-on-primary: #381E72;
+      --md-primary-container: #4F378B;
+      --md-on-primary-container: #EADDFF;
+      --md-surface: #1C1B1F;
+      --md-surface-variant: #49454F;
+      --md-on-surface: #E6E1E5;
+      --md-on-surface-variant: #CAC4D0;
+      --md-outline: #938F99;
+      --md-outline-variant: #49454F;
+      --md-shadow: rgba(0,0,0,0.4);
+      --md-user-bubble: #D0BCFF;
+      --md-user-text: #381E72;
+      --md-bot-bubble: #2B2930;
+      --md-bot-text: #E6E1E5;
+      --md-input-bg: #2B2930;
+      --md-topbar: #2B2930;
+      --md-topbar-text: #E6E1E5;
+      --md-ripple: rgba(208,188,255,0.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Google Sans Text', sans-serif;
+      background: var(--md-surface);
+      color: var(--md-on-surface);
+      height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      transition: background .3s, color .3s;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      background: var(--md-surface);
+      box-shadow: var(--elevation-3);
+    }
+
+    /* TOP BAR */
+    .topbar {
+      background: var(--md-topbar);
+      color: var(--md-topbar-text);
+      padding: 0 8px 0 16px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      box-shadow: var(--elevation-2);
+      z-index: 10;
+    }
+    .topbar-icon {
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; flex-shrink: 0;
+      background: rgba(255,255,255,0.15);
+    }
+    .topbar-icon svg { width: 22px; height: 22px; fill: var(--md-topbar-text); }
+    .topbar-title {
+      font-family: 'Google Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 500;
+      flex: 1;
+      letter-spacing: 0;
+    }
+    .topbar-subtitle {
+      font-size: 12px;
+      opacity: .75;
+      margin-top: 1px;
+    }
+    .topbar-info { display: flex; flex-direction: column; flex: 1; }
+
+    .theme-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .theme-btn:hover { background: rgba(255,255,255,0.12); }
+    .theme-btn svg { width: 22px; height: 22px; fill: var(--md-topbar-text); transition: opacity .2s, transform .3s; }
+
+    /* CHAT */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      scroll-behavior: smooth;
+    }
+    .chat-area::-webkit-scrollbar { width: 4px; }
+    .chat-area::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 2px; }
+
+    /* BUBBLES */
+    .msg-row {
+      display: flex;
+      animation: fadeUp .25s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .msg-row.user { justify-content: flex-end; }
+    .msg-row.bot  { justify-content: flex-start; }
+
+    .bubble {
+      max-width: 75%;
+      padding: 12px 16px;
+      border-radius: var(--radius-xl);
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: break-word;
+      box-shadow: var(--elevation-1);
+    }
+    .msg-row.user .bubble {
+      background: var(--md-user-bubble);
+      color: var(--md-user-text);
+      border-bottom-right-radius: 6px;
+    }
+    .msg-row.bot .bubble {
+      background: var(--md-bot-bubble);
+      color: var(--md-bot-text);
+      border-bottom-left-radius: 6px;
+    }
+    .bubble .label {
+      font-family: 'Google Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      opacity: .65;
+    }
+
+    /* Typing indicator */
+    .typing-bubble {
+      display: flex; gap: 5px; align-items: center; padding: 14px 18px;
+    }
+    .typing-bubble span {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--md-primary); opacity: .6;
+      animation: bounce .9s infinite;
+    }
+    .typing-bubble span:nth-child(2) { animation-delay: .15s; }
+    .typing-bubble span:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.8); opacity: .4; }
+      40%            { transform: scale(1.2); opacity: 1; }
+    }
+
+    /* IMAGE PREVIEW IN BUBBLE */
+    .bubble img.attach-preview {
+      max-width: 180px; max-height: 160px; border-radius: 10px; display: block; margin-bottom: 6px; object-fit: cover;
+    }
+
+    /* INPUT ZONE */
+    .input-zone {
+      padding: 12px 12px 16px;
+      background: var(--md-surface);
+      border-top: 1px solid var(--md-outline-variant);
+      flex-shrink: 0;
+    }
+
+    /* Image preview strip */
+    .img-strip {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      background: var(--md-surface-variant);
+      border-radius: var(--radius-md);
+      padding: 8px 10px;
+    }
+    .img-strip.visible { display: flex; }
+    .img-strip img {
+      width: 48px; height: 48px; object-fit: cover;
+      border-radius: 8px; border: 2px solid var(--md-primary);
+    }
+    .img-strip span {
+      flex: 1; font-size: 13px; color: var(--md-on-surface-variant);
+    }
+    .img-strip button {
+      background: none; border: none; cursor: pointer;
+      color: var(--md-on-surface-variant); font-size: 18px; line-height: 1;
+      padding: 2px 6px; border-radius: 50%; transition: background .2s;
+    }
+    .img-strip button:hover { background: var(--md-ripple); }
+
+    /* Input row */
+    .input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      background: var(--md-input-bg);
+      border: 1.5px solid var(--md-outline-variant);
+      border-radius: var(--radius-xl);
+      padding: 6px 6px 6px 16px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .input-row:focus-within {
+      border-color: var(--md-primary);
+      box-shadow: 0 0 0 2px rgba(103,80,164,0.15);
+    }
+
+    textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: 'Google Sans Text', sans-serif;
+      font-size: 15px;
+      color: var(--md-on-surface);
+      line-height: 1.5;
+      max-height: 140px;
+      min-height: 24px;
+      padding: 4px 0;
+      overflow-y: auto;
+    }
+    textarea::placeholder { color: var(--md-on-surface-variant); }
+
+    .icon-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background .2s, transform .15s;
+      background: transparent;
+      color: var(--md-on-surface-variant);
+    }
+    .icon-btn:hover { background: var(--md-ripple); }
+    .icon-btn:active { transform: scale(.9); }
+    .icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+    .send-btn {
+      background: var(--md-primary);
+      color: var(--md-on-primary);
+    }
+    .send-btn:hover { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+    .send-btn:disabled { background: var(--md-surface-variant); color: var(--md-on-surface-variant); cursor: not-allowed; }
+
+    .attach-btn { color: var(--md-on-surface-variant); }
+
+    #fileInput { display: none; }
+
+    .hint-text {
+      text-align: center;
+      font-size: 11px;
+      color: var(--md-on-surface-variant);
+      margin-top: 6px;
+      opacity: .65;
+    }
+  </style>
 </head>
 <body>
 
-    <div id="chat">
-        <div class="msg bot-msg"><b>Бот:</b> Привет! Пиши текст, прикрепляй файл или <b>просто вставь картинку (Ctrl+V)</b>.</div>
+<div class="app">
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
     </div>
-    
-    <div class="controls">
-        <input type="file" id="fileInput" accept="image/*">
-        <img id="preview">
-        <div class="hint">Можно нажать Ctrl+V, чтобы вставить скриншот</div>
-        <input type="text" id="userInput" placeholder="Ваш вопрос..." onkeypress="if(event.key==='Enter') send()">
-        <div class="btn-group">
-            <button id="sendBtn" onclick="send()">Отправить</button>
-            <button onclick="document.getElementById('chat').innerHTML=''" style="background:#6c757d">Очистить</button>
-        </div>
+    <div class="topbar-info">
+      <span class="topbar-title">Gemini Chat</span>
+      <span class="topbar-subtitle">Powered by Google AI</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" title="Сменить тему" onclick="toggleTheme()">
+      <svg id="themeIcon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+    </button>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-area" id="chat">
+    <div class="msg-row bot">
+      <div class="bubble">
+        <div class="label">Gemini</div>
+        Привет! Напиши вопрос, прикрепи фото или вставь скриншот через <b>Ctrl+V</b>.
+      </div>
+    </div>
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-zone">
+    <div class="img-strip" id="imgStrip">
+      <img id="stripPreview" src="" alt="">
+      <span id="stripName">Изображение прикреплено</span>
+      <button onclick="clearImage()" title="Убрать">✕</button>
     </div>
 
-    <script>
-        // !!! ОБЯЗАТЕЛЬНО ЗАМЕНИ НА СВОЙ ПОЛНЫЙ URL !!!
-        // Пример: 'https://proud-cloud-cb1b.spiderkaras.workers.dev'
-        const WORKER_URL = 'https://proud-cloud-cb1b.spiderkaras.workers.dev/';
+    <div class="input-row">
+      <label for="fileInput" class="icon-btn attach-btn" title="Прикрепить изображение">
+        <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5V6H9v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S6 2.79 6 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+      </label>
+      <input type="file" id="fileInput" accept="image/*">
 
-        const fileInput = document.getElementById('fileInput');
-        const preview = document.getElementById('preview');
-        const chat = document.getElementById('chat');
-        const userInput = document.getElementById('userInput');
+      <textarea id="userInput" placeholder="Напишите сообщение..." rows="1"></textarea>
 
-        let selectedImageBase64 = null;
-        let selectedImageType = null;
+      <button class="icon-btn send-btn" id="sendBtn" title="Отправить (Enter)">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+    <div class="hint-text">Enter — отправить &nbsp;·&nbsp; Shift+Enter — новая строка &nbsp;·&nbsp; Ctrl+V — вставить скриншот</div>
+  </div>
+</div>
 
-        // 1. Обработка выбора файла через кнопку
-        fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+<script>
+  const WORKER_URL = 'https://proud-cloud-cb1b.spiderkaras.workers.dev/';
 
-        // 2. Обработка вставки из буфера обмена (Ctrl+V)
-        document.addEventListener('paste', (event) => {
-            const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-            for (let index in items) {
-                const item = items[index];
-                if (item.kind === 'file' && item.type.startsWith('image/')) {
-                    const blob = item.getAsFile();
-                    handleFile(blob);
-                }
-            }
-        });
+  const chat = document.getElementById('chat');
+  const textarea = document.getElementById('userInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const fileInput = document.getElementById('fileInput');
+  const imgStrip = document.getElementById('imgStrip');
+  const stripPreview = document.getElementById('stripPreview');
 
-        function handleFile(file) {
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                preview.src = e.target.result;
-                preview.style.display = 'block';
-                selectedImageBase64 = e.target.result.split(',')[1];
-                selectedImageType = file.type;
-            };
-            reader.readAsDataURL(file);
-        }
+  let selectedImageBase64 = null;
+  let selectedImageType = null;
 
-        async function send() {
-            const text = userInput.value.trim();
-            const btn = document.getElementById('sendBtn');
-            if (!text && !selectedImageBase64) return;
+  // ── THEME ──────────────────────────────────────────────
+  const sunIcon = `<path d="M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7zm0-5v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>`;
+  const moonIcon = `<path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>`;
 
-            btn.disabled = true;
-            chat.innerHTML += `<div class="msg user-msg"><b>Вы:</b> ${text} ${selectedImageBase64 ? '(картинка)' : ''}</div>`;
-            chat.scrollTop = chat.scrollHeight;
+  let isDark = false;
+  function toggleTheme() {
+    isDark = !isDark;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    document.getElementById('themeIcon').innerHTML = isDark ? sunIcon : moonIcon;
+  }
 
-            const payload = {
-                message: text,
-                imageBase64: selectedImageBase64,
-                imageType: selectedImageType
-            };
+  // ── AUTO-RESIZE TEXTAREA ───────────────────────────────
+  textarea.addEventListener('input', () => {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
+  });
 
-            // Очистка полей
-            userInput.value = '';
-            fileInput.value = '';
-            preview.style.display = 'none';
-            selectedImageBase64 = null;
+  // ── ENTER TO SEND ──────────────────────────────────────
+  textarea.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
 
-            try {
-                const response = await fetch(WORKER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                const data = await response.json();
-                chat.innerHTML += `<div class="msg bot-msg"><b>Бот:</b> ${data.reply}</div>`;
-            } catch (err) {
-                chat.innerHTML += `<div class="msg" style="color:red"><b>Ошибка:</b> Проверь URL воркера и API ключ.</div>`;
-            } finally {
-                btn.disabled = false;
-                chat.scrollTop = chat.scrollHeight;
-            }
-        }
-    </script>
+  // ── IMAGE HANDLING ─────────────────────────────────────
+  fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+  document.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        handleFile(item.getAsFile());
+        break;
+      }
+    }
+  });
+
+  function handleFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      stripPreview.src = e.target.result;
+      imgStrip.classList.add('visible');
+      selectedImageBase64 = e.target.result.split(',')[1];
+      selectedImageType = file.type;
+      document.getElementById('stripName').textContent = file.name || 'Изображение прикреплено';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearImage() {
+    selectedImageBase64 = null;
+    selectedImageType = null;
+    stripPreview.src = '';
+    imgStrip.classList.remove('visible');
+    fileInput.value = '';
+  }
+
+  // ── ADD MESSAGE BUBBLE ─────────────────────────────────
+  function addBubble(role, text, imgSrc) {
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = role === 'user' ? 'Вы' : 'Gemini';
+    bubble.appendChild(label);
+
+    if (imgSrc) {
+      const img = document.createElement('img');
+      img.className = 'attach-preview';
+      img.src = imgSrc;
+      bubble.appendChild(img);
+    }
+
+    const p = document.createElement('div');
+    p.textContent = text;
+    bubble.appendChild(p);
+
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+    return row;
+  }
+
+  function addTyping() {
+    const row = document.createElement('div');
+    row.className = 'msg-row bot';
+    row.id = 'typingRow';
+    row.innerHTML = `<div class="bubble typing-bubble"><span></span><span></span><span></span></div>`;
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typingRow');
+    if (el) el.remove();
+  }
+
+  // ── SEND ───────────────────────────────────────────────
+  async function send() {
+    const text = textarea.value.trim();
+    if (!text && !selectedImageBase64) return;
+    if (sendBtn.disabled) return;
+
+    const imgSrc = selectedImageBase64 ? `data:${selectedImageType};base64,${selectedImageBase64}` : null;
+    addBubble('user', text || '', imgSrc);
+
+    const payload = {
+      message: text,
+      imageBase64: selectedImageBase64,
+      imageType: selectedImageType
+    };
+
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    clearImage();
+    sendBtn.disabled = true;
+    addTyping();
+
+    try {
+      const response = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      removeTyping();
+      addBubble('bot', data.reply || 'Нет ответа');
+    } catch {
+      removeTyping();
+      const row = document.createElement('div');
+      row.className = 'msg-row bot';
+      row.innerHTML = `<div class="bubble" style="border:1px solid #cf6679;color:#cf6679">⚠️ Ошибка: проверь URL воркера и ключ API.</div>`;
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    } finally {
+      sendBtn.disabled = false;
+      textarea.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', send);
+</script>
 </body>
 </html>

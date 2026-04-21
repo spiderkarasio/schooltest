@@ -5,12 +5,12 @@ const path = require('path');
 
 const app = express();
 
-// Берем токен из переменных окружения Render
-const TOKEN = process.env.API_KEY; 
-
+// Лимиты для того, чтобы фото пролезали без ошибок
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(__dirname));
+
+const API_KEY = process.env.API_KEY; 
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -18,50 +18,55 @@ app.get('/', (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        if (!TOKEN) {
-            return res.status(500).json({ reply: "Ошибка: Токен (API_KEY) не настроен в Render!" });
+        if (!API_KEY) {
+            return res.json({ reply: "Ошибка: Забыл добавить API_KEY в настройки Render!" });
         }
 
-        // URL для Google Cloud / AI Studio через Bearer токен
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+        const { message, imageBase64 } = req.body;
+
+        // Формируем запрос
+        const requestBody = {
+            contents: [{
+                parts: []
+            }]
+        };
+
+        if (message) requestBody.contents[0].parts.push({ text: message });
+        
+        if (imageBase64) {
+            const data = imageBase64.split(',')[1] || imageBase64;
+            requestBody.contents[0].parts.push({
+                inline_data: {
+                    mime_type: "image/jpeg",
+                    data: data
+                }
+            });
+        }
+
+        // Самая стабильная ссылка для ключей AIza...
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                // Используем Bearer, как ты просил
-                'Authorization': `Bearer ${TOKEN}` 
-            },
-            body: JSON.stringify({
-                contents: [{ 
-                    parts: [{ text: req.body.message }] 
-                }]
-            })
-            // Агент убран, так как на Render он вызовет ошибку подключения
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
         });
 
-        const data = await response.json();
+        const result = await response.json();
 
-        if (data.error) {
-            console.error("GOOGLE ERROR:", data.error);
-            // Если будет 404, значит путь /models/gemini-1.5-flash через Bearer не подходит
-            return res.status(500).json({ reply: `Ошибка: ${data.error.message}` });
+        if (result.error) {
+            console.error("Gemini Error:", result.error);
+            return res.json({ reply: "Ошибка от Google: " + result.error.message });
         }
 
-        if (!data.candidates || !data.candidates[0]) {
-            return res.json({ reply: "Модель не прислала текст. Проверь логи." });
-        }
-
-        res.json({ reply: data.candidates[0].content.parts[0].text });
+        const answer = result.candidates?.[0]?.content?.parts?.[0]?.text || "Модель промолчала...";
+        res.json({ reply: answer });
 
     } catch (err) {
-        console.error("SERVER ERROR:", err.message);
-        res.status(500).json({ reply: "Ошибка на сервере: " + err.message });
+        console.error("Server Error:", err);
+        res.json({ reply: "Ошибка сервера: " + err.message });
     }
 });
 
-// Используем порт, который дает Render
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`Бот пашет на порту ${PORT}`));

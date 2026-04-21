@@ -10,6 +10,13 @@ app.use(express.static(__dirname));
 
 const API_KEY = process.env.API_KEY;
 
+// 👉 список моделей (будет пробовать по очереди)
+const MODELS = [
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+    "gemini-pro"
+];
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -17,15 +24,16 @@ app.get('/', (req, res) => {
 app.post('/api/chat', async (req, res) => {
     try {
         if (!API_KEY) {
-            return res.status(500).json({ reply: "Нет API_KEY (проверь Render env)" });
+            return res.status(500).json({ reply: "❌ Нет API_KEY (Render env)" });
         }
 
         const { message, imageBase64 } = req.body;
 
         if (!message && !imageBase64) {
-            return res.status(400).json({ reply: "Пустой запрос" });
+            return res.status(400).json({ reply: "❌ Пустой запрос" });
         }
 
+        // 📦 собираем parts
         const parts = [];
 
         if (message) {
@@ -34,7 +42,7 @@ app.post('/api/chat', async (req, res) => {
 
         if (imageBase64) {
             const match = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
-            
+
             let mime = "image/jpeg";
             let data = imageBase64;
 
@@ -55,39 +63,53 @@ app.post('/api/chat', async (req, res) => {
             contents: [{ parts }]
         };
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        let lastError = null;
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
+        // 🔁 пробуем модели по очереди
+        for (const model of MODELS) {
+            const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`;
+
+            try {
+                console.log(`Trying model: ${model}`);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.log(`❌ ${model} failed:`, text);
+                    continue;
+                }
+
+                const result = await response.json();
+
+                const answer =
+                    result?.candidates?.[0]?.content?.parts
+                        ?.map(p => p.text || "")
+                        .join(" ")
+                        .trim();
+
+                if (answer) {
+                    console.log(`✅ Success with: ${model}`);
+                    return res.json({ reply: answer });
+                }
+
+            } catch (err) {
+                console.log(`⚠️ Error with ${model}:`, err.message);
+                lastError = err;
+            }
+        }
+
+        // ❌ если ни одна модель не сработала
+        return res.status(500).json({
+            reply: "❌ Ни одна модель не доступна (проверь API_KEY)"
         });
 
-        if (!response.ok) {
-            const text = await response.text();
-            console.error("HTTP Error:", text);
-            return res.status(response.status).json({
-                reply: "Ошибка API: " + text
-            });
-        }
-
-        const result = await response.json();
-
-        const answer =
-            result?.candidates?.[0]?.content?.parts
-                ?.map(p => p.text || "")
-                .join(" ")
-                .trim();
-
-        if (!answer) {
-            console.error("Empty Gemini response:", result);
-            return res.json({ reply: "Модель не вернула текст" });
-        }
-
-        res.json({ reply: answer });
-
     } catch (err) {
-        console.error("Server Error:", err);
+        console.error("🔥 Server Error:", err);
         res.status(500).json({ reply: "Ошибка сервера: " + err.message });
     }
 });
@@ -95,5 +117,5 @@ app.post('/api/chat', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
+    console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });

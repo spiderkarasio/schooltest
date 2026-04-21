@@ -67,7 +67,7 @@ app.post('/api/chat', async (req, res) => {
 
         // 🔁 пробуем модели по очереди
         for (const model of MODELS) {
-            const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`;
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
             try {
                 console.log(`Trying model: ${model}`);

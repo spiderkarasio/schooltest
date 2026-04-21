@@ -23,7 +23,7 @@ app.post('/api/chat', async (req, res) => {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "meta-llama/Llama-3.3-70B-Instruct", 
+                model: "gemma-4-26b-a4b-it", 
                 messages: [{ role: "user", content: req.body.message }]
             })
         });
